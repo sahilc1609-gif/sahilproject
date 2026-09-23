@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.database import init_db, reset_db, get_db_path
+from src.database import init_db, reset_db, get_db_path, check_db_health
 from src.students import (
     register_student,
     get_student_by_roll_no,
@@ -178,10 +178,16 @@ def interactive_cli():
         print("  7. Delete a Subject Result")
         print("  8. Delete a Student Record")
         print("  9. Seed Sample Records (sample/sample_data.json)")
+        print(" 10. Database Health & Diagnostics")
+        print(" 11. Reset Database Tables")
         print("  0. Exit")
         print("-" * 60)
 
-        choice = input("Select an option (0-9): ").strip()
+        try:
+            choice = input("Select an option (0-11): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting. Goodbye!")
+            break
 
         if choice == "1":
             print("\n--- Register Student ---")
@@ -326,11 +332,36 @@ def interactive_cli():
         elif choice == "9":
             seed_sample_data()
 
+        elif choice == "10":
+            print("\n--- Database Health & Diagnostics ---")
+            h = check_db_health()
+            print(f" Status       : {h.get('status', 'unknown').upper()}")
+            print(f" Integrity    : {h.get('integrity', 'unknown')}")
+            print(f" Students     : {h.get('student_count', 0)}")
+            print(f" Results      : {h.get('result_count', 0)}")
+            print(f" Path         : {h.get('path', 'unknown')}")
+            if h.get("status") == "healthy":
+                print_success("Database is healthy and fully operational.")
+            else:
+                print_error(f"Database error: {h.get('error', 'unknown error')}")
+
+        elif choice == "11":
+            print("\n--- Reset Database Tables ---")
+            confirm = input("Are you sure you want to drop and recreate all tables? (y/N): ").strip().lower()
+            if confirm == "y":
+                reset_db()
+                print_success("Database tables reset successfully.")
+                seed_now = input("Seed initial sample data now? [Y/n]: ").strip().lower()
+                if seed_now != "n":
+                    seed_sample_data()
+            else:
+                print_info("Reset cancelled.")
+
         elif choice == "0":
             print("\nExiting Student Result Management System. Goodbye!")
             break
         else:
-            print_error("Invalid choice. Please enter a number from 0 to 9.")
+            print_error("Invalid choice. Please enter a number from 0 to 11.")
 
 
 # ============================================================================
@@ -447,6 +478,7 @@ def main():
     parser.add_argument("--seed", action="store_true", help="Seed database with sample dataset")
     parser.add_argument("--init-db", action="store_true", help="Initialize database tables")
     parser.add_argument("--reset-db", action="store_true", help="Reset all tables in database")
+    parser.add_argument("--health", action="store_true", help="Check database health and integrity")
 
     # Student operations
     parser.add_argument("--register-student", action="store_true", help="Register a student")
@@ -492,6 +524,10 @@ def main():
 
     elif args.seed:
         seed_sample_data()
+
+    elif args.health:
+        h = check_db_health()
+        print(json.dumps(h, indent=2))
 
     elif args.register_student:
         if not (args.roll and args.name and args.email and args.course and args.sem):

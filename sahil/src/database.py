@@ -45,10 +45,17 @@ def get_db_path(custom_path=None):
         # If tmp_db does not exist or has 0 bytes, copy from bundled data/results.db
         if not os.path.exists(tmp_db) or os.path.getsize(tmp_db) == 0:
             os.makedirs("/tmp", exist_ok=True)
-            base_db = os.path.join(BASE_DIR, "data", "results.db")
-            if os.path.exists(base_db) and os.path.getsize(base_db) > 0:
+            candidate_base = [
+                os.path.join(BASE_DIR, "data", "results.db"),
+                os.path.join(Path.cwd(), "data", "results.db"),
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "results.db")
+            ]
+            base_db = next((c for c in candidate_base if os.path.exists(c) and os.path.getsize(c) > 0), None)
+            if base_db:
                 try:
-                    shutil.copy2(base_db, tmp_db)
+                    tmp_copy = f"/tmp/results_{os.getpid()}.tmp"
+                    shutil.copy2(base_db, tmp_copy)
+                    os.replace(tmp_copy, tmp_db)
                 except Exception as e:
                     print(f"[Database] Warning copying base DB to /tmp: {e}")
         return tmp_db
