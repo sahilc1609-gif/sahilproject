@@ -59,6 +59,8 @@ def is_port_available(port, host="127.0.0.1"):
 # ============================================================================
 
 @app.route("/")
+@app.route("/api")
+@app.route("/api/index")
 def index():
     return render_template("index.html")
 
