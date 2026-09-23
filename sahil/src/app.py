@@ -28,6 +28,7 @@ from src.students import (
 )
 from src.results import (
     add_or_update_subject_marks,
+    add_multiple_subject_marks,
     delete_subject_marks,
     get_student_result,
     get_all_results_summary
@@ -105,11 +106,20 @@ def print_result_card(result_data):
 
 
 def seed_sample_data(sample_file=None):
-    """Seed the database with predefined sample data."""
+    """Seed the database with predefined sample data using atomic batch transactions."""
     if not sample_file:
-        sample_file = os.path.join(PROJECT_ROOT, "sample", "sample_data.json")
+        candidates = [
+            os.path.join(PROJECT_ROOT, "sample", "sample_data.json"),
+            os.path.join(Path.cwd(), "sample", "sample_data.json"),
+            os.path.join(Path(__file__).resolve().parent.parent, "sample", "sample_data.json"),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sample", "sample_data.json")
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                sample_file = c
+                break
 
-    if not os.path.exists(sample_file):
+    if not sample_file or not os.path.exists(sample_file):
         print_error(f"Sample data file not found at {sample_file}")
         return False
 
@@ -131,13 +141,18 @@ def seed_sample_data(sample_file=None):
         else:
             print_info(f"Student {rec['roll_no']} already present or skipped: {reg_res.get('error')}")
 
-        for subj in rec.get("subjects", []):
-            add_or_update_subject_marks(
-                roll_no=rec["roll_no"],
-                subject_name=subj["subject_name"],
-                marks_obtained=subj["marks_obtained"],
-                max_marks=subj.get("max_marks", 100.0)
-            )
+        subjects = rec.get("subjects", [])
+        if subjects:
+            b_res = add_multiple_subject_marks(rec["roll_no"], subjects)
+            if not b_res.get("success"):
+                # Fallback to individual insertions if needed
+                for subj in subjects:
+                    add_or_update_subject_marks(
+                        roll_no=rec["roll_no"],
+                        subject_name=subj["subject_name"],
+                        marks_obtained=subj["marks_obtained"],
+                        max_marks=subj.get("max_marks", 100.0)
+                    )
 
     print_success("Database seeding completed successfully.")
     return True
@@ -178,20 +193,64 @@ def interactive_cli():
             res = register_student(roll_no, name, email, course, sem)
             if res["success"]:
                 print_success(res["message"])
+                # Prompt to enter subjects immediately
+                add_now = input("\nWould you like to enter subjects & marks for this student now? [Y/n]: ").strip().lower()
+                if add_now != "n":
+                    print(f"\n--- Enter Subjects for {name} ({roll_no}) ---")
+                    print("Enter subject details below. Leave Subject Name empty or type 'done' to finish.")
+                    sub_list = []
+                    idx = 1
+                    while True:
+                        subj = input(f"\n  Subject {idx} Name (or Enter to finish): ").strip()
+                        if not subj or subj.lower() in ("done", "exit", "q"):
+                            break
+                        marks = input(f"  Marks Obtained for '{subj}': ").strip()
+                        max_m = input(f"  Maximum Marks [Default: 100]: ").strip() or "100"
+                        sub_list.append({"subject_name": subj, "marks_obtained": marks, "max_marks": max_m})
+                        idx += 1
+
+                    if sub_list:
+                        b_res = add_multiple_subject_marks(roll_no, sub_list)
+                        if b_res["success"]:
+                            print_success(b_res["message"])
+                            if b_res.get("data"):
+                                print_result_card(b_res["data"])
+                        else:
+                            print_error(b_res["error"])
             else:
                 print_error(res["error"])
 
         elif choice == "2":
-            print("\n--- Add / Update Subject Marks ---")
+            print("\n--- Add / Update Subject Marks (Streamlined Batch Input) ---")
             roll_no = input("Student Roll Number: ").strip()
-            subj = input("Subject Name: ").strip()
-            marks = input("Marks Obtained: ").strip()
-            max_m = input("Maximum Marks [Default: 100]: ").strip() or "100"
-            res = add_or_update_subject_marks(roll_no, subj, marks, max_m)
-            if res["success"]:
-                print_success(res["message"])
+            stu_res = get_student_by_roll_no(roll_no)
+            if not stu_res["success"]:
+                print_error(stu_res["error"])
+                continue
+            student = stu_res["data"]
+            print_info(f"Recording marks for: {student['name']} ({student['roll_no']})")
+            print("Tip: Enter multiple subjects continuously. Press [Enter] on Subject Name when finished.")
+            sub_list = []
+            idx = 1
+            while True:
+                subj = input(f"\n  Subject {idx} Name (or Enter to finish): ").strip()
+                if not subj or subj.lower() in ("done", "exit", "q"):
+                    break
+                marks = input(f"  Marks Obtained for '{subj}': ").strip()
+                max_m = input(f"  Maximum Marks [Default: 100]: ").strip() or "100"
+                sub_list.append({"subject_name": subj, "marks_obtained": marks, "max_marks": max_m})
+                idx += 1
+
+            if sub_list:
+                b_res = add_multiple_subject_marks(roll_no, sub_list)
+                if b_res["success"]:
+                    print_success(b_res["message"])
+                    if b_res.get("data"):
+                        print_result_card(b_res["data"])
+                else:
+                    print_error(b_res["error"])
             else:
-                print_error(res["error"])
+                print_info("No subjects entered.")
 
         elif choice == "3":
             print("\n--- View Student Result Card ---")
@@ -399,9 +458,10 @@ def main():
 
     # Result operations
     parser.add_argument("--add-marks", action="store_true", help="Add or update subject marks")
-    parser.add_argument("--subject", type=str, help="Subject Name")
-    parser.add_argument("--marks", type=float, help="Marks Obtained")
+    parser.add_argument("--subject", type=str, help="Subject Name (for single subject entry)")
+    parser.add_argument("--marks", type=float, help="Marks Obtained (for single subject entry)")
     parser.add_argument("--max", type=float, default=100.0, help="Maximum Marks (default 100)")
+    parser.add_argument("--subjects", type=str, help="Batch input multiple subjects, e.g. 'Math:85, Physics:92/100'")
 
     # View & Search operations
     parser.add_argument("--view-result", type=str, metavar="ROLL_NO", help="Display full result card for a student")
@@ -444,14 +504,47 @@ def main():
             print_error(res["error"])
 
     elif args.add_marks:
-        if not (args.roll and args.subject and args.marks is not None):
-            print_error("Missing required arguments for adding marks: --roll, --subject, --marks")
+        if not args.roll:
+            print_error("Missing required argument: --roll")
             sys.exit(1)
-        res = add_or_update_subject_marks(args.roll, args.subject, args.marks, args.max)
-        if res["success"]:
-            print_success(res["message"])
+        if args.subjects:
+            sub_list = []
+            for item in args.subjects.split(","):
+                item = item.strip()
+                if not item:
+                    continue
+                parts = item.split(":")
+                subj_name = parts[0].strip()
+                marks_part = parts[1].strip() if len(parts) > 1 else "0"
+                if "/" in marks_part:
+                    m_val, max_val = marks_part.split("/")
+                else:
+                    m_val, max_val = marks_part, "100"
+                try:
+                    sub_list.append({
+                        "subject_name": subj_name,
+                        "marks_obtained": float(m_val),
+                        "max_marks": float(max_val)
+                    })
+                except ValueError:
+                    print_error(f"Invalid numeric score in: '{item}'")
+                    sys.exit(1)
+            res = add_multiple_subject_marks(args.roll, sub_list)
+            if res["success"]:
+                print_success(res["message"])
+                if res.get("data"):
+                    print_result_card(res["data"])
+            else:
+                print_error(res["error"])
+        elif args.subject and args.marks is not None:
+            res = add_or_update_subject_marks(args.roll, args.subject, args.marks, args.max)
+            if res["success"]:
+                print_success(res["message"])
+            else:
+                print_error(res["error"])
         else:
-            print_error(res["error"])
+            print_error("Provide either --subjects 'Math:85, Physics:90' or --subject <name> --marks <val>")
+            sys.exit(1)
 
     elif args.view_result:
         res = get_student_result(args.view_result)

@@ -93,19 +93,41 @@ document.addEventListener('DOMContentLoaded', () => {
         </tr>
       `;
 
-      const summaryRes = await fetch('/api/summary').then(r => r.json());
+      const response = await fetch('/api/summary');
+      if (!response.ok) {
+        let errMsg = `HTTP ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) errMsg = errData.error;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
+
+      const summaryRes = await response.json();
 
       if (summaryRes.success) {
         allStudents = summaryRes.data || [];
         updateStats(allStudents);
         renderTable(allStudents);
       } else {
-        tableBody.innerHTML = `<tr><td colspan="9" class="empty-state">Failed to load student data.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="9" class="empty-state">${escapeHtml(summaryRes.error || 'Failed to load student data.')}</td></tr>`;
+        showToast(summaryRes.error || 'Database error loading records', 'error');
       }
     } catch (err) {
       console.error('Data load error:', err);
-      tableBody.innerHTML = `<tr><td colspan="9" class="empty-state">Error connecting to server.</td></tr>`;
-      showToast('Error connecting to backend database', 'error');
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="9" class="empty-state">
+            <i class="fa-solid fa-triangle-exclamation" style="font-size: 28px; margin-bottom: 8px; color: var(--danger); display: block;"></i>
+            <p>Unable to connect to backend database.</p>
+            <p style="font-size: 0.85rem; color: var(--text-dim); margin: 6px 0 12px;">${escapeHtml(err.message || 'Server connection failed')}</p>
+            <button class="btn btn-secondary" onclick="loadDashboardData()" style="display: inline-flex; align-items: center; gap: 6px; margin: 0 auto;">
+              <i class="fa-solid fa-rotate"></i> Retry Connection
+            </button>
+          </td>
+        </tr>
+      `;
+      showToast('Error connecting to backend database: ' + (err.message || 'Server unreachable'), 'error');
     }
   }
 
@@ -535,66 +557,247 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // Add / Update Marks Modal & Form
+  // Add / Update Marks Modal & Form (Batch & Multi-Subject)
   // =========================================================================
-  window.openMarksModal = function(rollNo, studentName) {
+  const subjectRowsContainer = document.getElementById('subject-rows-container');
+  const btnAddSubjectRow = document.getElementById('btn-add-subject-row');
+  const btnPresetCs = document.getElementById('btn-preset-cs');
+  const btnPresetEce = document.getElementById('btn-preset-ece');
+  const btnPresetFirstYear = document.getElementById('btn-preset-firstyear');
+  const btnPresetClear = document.getElementById('btn-preset-clear');
+  const previewTotalSubjects = document.getElementById('preview-total-subjects');
+  const previewCumulativeScore = document.getElementById('preview-cumulative-score');
+
+  function createSubjectRow(subjectName = '', marks = '', maxMarks = 100) {
+    const row = document.createElement('div');
+    row.className = 'subject-entry-row';
+    row.innerHTML = `
+      <input type="text" class="form-control batch-subject-name" placeholder="e.g. Operating Systems" value="${escapeHtml(subjectName)}" required style="flex: 2.2;">
+      <input type="number" step="0.5" min="0" class="form-control batch-marks-obtained" placeholder="Marks" value="${marks}" required style="flex: 1.1;">
+      <input type="number" step="0.5" min="1" class="form-control batch-marks-max" placeholder="Max" value="${maxMarks}" required style="flex: 1.1;">
+      <button type="button" class="btn-remove-row" title="Remove Subject"><i class="fa-solid fa-trash-can"></i></button>
+    `;
+
+    const nameInp = row.querySelector('.batch-subject-name');
+    const marksInp = row.querySelector('.batch-marks-obtained');
+    const maxInp = row.querySelector('.batch-marks-max');
+    const btnRemove = row.querySelector('.btn-remove-row');
+
+    marksInp.addEventListener('input', updateBatchPreview);
+    maxInp.addEventListener('input', updateBatchPreview);
+    nameInp.addEventListener('input', updateBatchPreview);
+
+    btnRemove.addEventListener('click', () => {
+      row.remove();
+      if (subjectRowsContainer.children.length === 0) {
+        createSubjectRow();
+      }
+      updateBatchPreview();
+    });
+
+    subjectRowsContainer.appendChild(row);
+    return row;
+  }
+
+  function updateBatchPreview() {
+    const rows = subjectRowsContainer.querySelectorAll('.subject-entry-row');
+    let totalObtained = 0;
+    let totalMax = 0;
+    let validCount = 0;
+    let anyFailed = false;
+
+    rows.forEach(r => {
+      const name = r.querySelector('.batch-subject-name').value.trim();
+      const mStr = r.querySelector('.batch-marks-obtained').value;
+      const maxStr = r.querySelector('.batch-marks-max').value;
+      if (name && mStr !== '') {
+        const m = parseFloat(mStr) || 0;
+        const max = parseFloat(maxStr) || 100;
+        totalObtained += m;
+        totalMax += max;
+        validCount++;
+        if (max > 0 && (m / max) * 100 < 35) {
+          anyFailed = true;
+        }
+      }
+    });
+
+    if (previewTotalSubjects) previewTotalSubjects.textContent = validCount;
+    if (previewCumulativeScore) previewCumulativeScore.textContent = `${totalObtained.toFixed(1)} / ${totalMax.toFixed(1)}`;
+
+    if (validCount === 0 || totalMax === 0) {
+      if (previewPct) previewPct.textContent = '0.0%';
+      if (previewStatus) {
+        previewStatus.textContent = 'Awaiting Input';
+        previewStatus.className = 'badge-status-neutral';
+      }
+      return;
+    }
+
+    const pct = (totalObtained / totalMax) * 100;
+    if (previewPct) previewPct.textContent = `${pct.toFixed(2)}%`;
+
+    let grade = 'F';
+    if (pct >= 90) grade = 'A+';
+    else if (pct >= 80) grade = 'A';
+    else if (pct >= 70) grade = 'B+';
+    else if (pct >= 60) grade = 'B';
+    else if (pct >= 50) grade = 'C';
+    else if (pct >= 40) grade = 'P';
+
+    if (previewStatus) {
+      if (!anyFailed && pct >= 40) {
+        previewStatus.textContent = `PASS (Grade ${grade})`;
+        previewStatus.className = 'status-pill pass';
+      } else {
+        previewStatus.textContent = anyFailed ? 'FAIL (Subject < 35%)' : 'FAIL (Aggregate < 40%)';
+        previewStatus.className = 'status-pill fail';
+      }
+    }
+  }
+
+  function applyPresetSubjects(subjectsArray) {
+    subjectRowsContainer.innerHTML = '';
+    subjectsArray.forEach(subj => {
+      createSubjectRow(subj, '', 100);
+    });
+    updateBatchPreview();
+    const firstInput = subjectRowsContainer.querySelector('.batch-marks-obtained');
+    if (firstInput) firstInput.focus();
+  }
+
+  if (btnPresetCs) {
+    btnPresetCs.addEventListener('click', () => {
+      applyPresetSubjects([
+        'Data Structures & Algorithms',
+        'Database Management Systems',
+        'Operating Systems',
+        'Computer Networks',
+        'Software Engineering'
+      ]);
+    });
+  }
+
+  if (btnPresetEce) {
+    btnPresetEce.addEventListener('click', () => {
+      applyPresetSubjects([
+        'Digital Signal Processing',
+        'Microprocessors & Microcontrollers',
+        'VLSI Design',
+        'Analog Communication',
+        'Electromagnetic Fields'
+      ]);
+    });
+  }
+
+  if (btnPresetFirstYear) {
+    btnPresetFirstYear.addEventListener('click', () => {
+      applyPresetSubjects([
+        'Engineering Mathematics',
+        'Engineering Physics',
+        'Basic Electrical & Electronics',
+        'Problem Solving with Python',
+        'Professional Communication'
+      ]);
+    });
+  }
+
+  if (btnPresetClear) {
+    btnPresetClear.addEventListener('click', () => {
+      subjectRowsContainer.innerHTML = '';
+      createSubjectRow('', '', 100);
+      updateBatchPreview();
+    });
+  }
+
+  if (btnAddSubjectRow) {
+    btnAddSubjectRow.addEventListener('click', () => {
+      const row = createSubjectRow('', '', 100);
+      row.querySelector('.batch-subject-name').focus();
+    });
+  }
+
+  window.openMarksModal = async function(rollNo, studentName) {
     marksRollInput.value = rollNo;
     marksModalStudentName.textContent = `Recording for: ${studentName} (${rollNo})`;
-    formMarks.reset();
-    marksMaxInput.value = '100';
-    updateMarksPreview();
+    subjectRowsContainer.innerHTML = '';
+
+    // Check if student already has recorded subjects and pre-fill them
+    try {
+      const res = await fetch(`/api/results/${rollNo}`).then(r => r.json());
+      if (res.success && res.data && res.data.subjects && res.data.subjects.length > 0) {
+        res.data.subjects.forEach(s => {
+          createSubjectRow(s.subject_name, s.marks_obtained, s.max_marks);
+        });
+      } else {
+        // Pre-fill 3 blank rows for quick streamlined entry
+        createSubjectRow('', '', 100);
+        createSubjectRow('', '', 100);
+        createSubjectRow('', '', 100);
+      }
+    } catch (e) {
+      createSubjectRow('', '', 100);
+    }
+
+    updateBatchPreview();
     modalMarks.style.display = 'flex';
   };
 
   btnCloseMarks.addEventListener('click', () => modalMarks.style.display = 'none');
   btnCancelMarks.addEventListener('click', () => modalMarks.style.display = 'none');
 
-  function updateMarksPreview() {
-    const obtained = parseFloat(marksObtainedInput.value) || 0;
-    const max = parseFloat(marksMaxInput.value) || 100;
-    if (max <= 0) return;
-    const pct = ((obtained / max) * 100).toFixed(1);
-    previewPct.textContent = `${pct}%`;
-    if (marksObtainedInput.value === '') {
-      previewStatus.textContent = 'Awaiting Input';
-      previewStatus.className = 'badge-status-neutral';
-    } else if (pct >= 35) {
-      previewStatus.textContent = 'SUBJECT PASS';
-      previewStatus.className = 'status-pill pass';
-    } else {
-      previewStatus.textContent = 'SUBJECT FAIL (< 35%)';
-      previewStatus.className = 'status-pill fail';
-    }
-  }
-
-  marksObtainedInput.addEventListener('input', updateMarksPreview);
-  marksMaxInput.addEventListener('input', updateMarksPreview);
-
   formMarks.addEventListener('submit', async (e) => {
     e.preventDefault();
     const rollNo = marksRollInput.value;
-    const payload = {
-      subject_name: document.getElementById('marks-subject').value.trim(),
-      marks_obtained: parseFloat(marksObtainedInput.value),
-      max_marks: parseFloat(marksMaxInput.value)
-    };
+    const rows = subjectRowsContainer.querySelectorAll('.subject-entry-row');
+    const subjectsList = [];
+
+    rows.forEach(r => {
+      const subjName = r.querySelector('.batch-subject-name').value.trim();
+      const mStr = r.querySelector('.batch-marks-obtained').value.trim();
+      const maxStr = r.querySelector('.batch-marks-max').value.trim();
+      if (subjName) {
+        subjectsList.push({
+          subject_name: subjName,
+          marks_obtained: parseFloat(mStr) || 0,
+          max_marks: parseFloat(maxStr) || 100
+        });
+      }
+    });
+
+    if (subjectsList.length === 0) {
+      showToast('Please enter at least one subject with valid marks', 'error');
+      return;
+    }
 
     try {
-      const res = await fetch(`/api/results/${rollNo}`, {
+      const submitBtn = document.getElementById('btn-submit-marks');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
+
+      const res = await fetch(`/api/results/${rollNo}/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ subjects: subjectsList })
       }).then(r => r.json());
 
       if (res.success) {
-        showToast(`Marks for ${payload.subject_name} saved!`);
+        showToast(res.message || `Successfully recorded ${subjectsList.length} subjects!`);
         modalMarks.style.display = 'none';
         await loadDashboardData();
+        // If result transcript modal was open, refresh it
+        if (modalResult.style.display === 'flex') {
+          viewResultCard(rollNo);
+        }
       } else {
         showToast(res.error || 'Failed to save marks', 'error');
       }
     } catch (err) {
-      showToast('Error saving marks', 'error');
+      showToast('Error connecting to server to save marks', 'error');
+    } finally {
+      const submitBtn = document.getElementById('btn-submit-marks');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save All Subjects`;
     }
   });
 

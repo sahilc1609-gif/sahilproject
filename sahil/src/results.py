@@ -100,6 +100,73 @@ def add_or_update_subject_marks(roll_no, subject_name, marks_obtained, max_marks
         conn.close()
 
 
+def add_multiple_subject_marks(roll_no, subjects_list, db_path=None):
+    """
+    Add or update marks for multiple subjects at once in a single transaction.
+    subjects_list: list of dicts with keys: subject_name, marks_obtained, (optional) max_marks
+    """
+    init_db(db_path)
+    student_res = get_student_by_roll_no(roll_no, db_path)
+    if not student_res["success"]:
+        return student_res
+
+    student = student_res["data"]
+    if not subjects_list or not isinstance(subjects_list, list):
+        return {"success": False, "error": "Subjects list must be a non-empty list."}
+
+    valid_entries = []
+    errors = []
+
+    for i, item in enumerate(subjects_list, 1):
+        if not isinstance(item, dict):
+            errors.append(f"Item #{i} is invalid.")
+            continue
+        subj_name = str(item.get("subject_name", "")).strip()
+        if not subj_name:
+            continue
+        try:
+            marks = float(item.get("marks_obtained", 0))
+            max_m = float(item.get("max_marks", 100.0))
+            if max_m <= 0:
+                errors.append(f"Subject '{subj_name}': Max marks must be > 0.")
+                continue
+            if marks < 0 or marks > max_m:
+                errors.append(f"Subject '{subj_name}': Marks ({marks}) out of range (0-{max_m}).")
+                continue
+            valid_entries.append((student["id"], subj_name, marks, max_m))
+        except (ValueError, TypeError):
+            errors.append(f"Subject '{subj_name}': Marks must be numeric.")
+
+    if not valid_entries:
+        return {"success": False, "error": errors[0] if errors else "No valid subject records provided."}
+
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+    try:
+        cursor.executemany("""
+            INSERT INTO results (student_id, subject_name, marks_obtained, max_marks)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(student_id, subject_name) DO UPDATE SET
+                marks_obtained = excluded.marks_obtained,
+                max_marks = excluded.max_marks,
+                updated_at = CURRENT_TIMESTAMP
+        """, valid_entries)
+        conn.commit()
+
+        card = get_student_result(roll_no, db_path)
+        return {
+            "success": True,
+            "message": f"Successfully recorded {len(valid_entries)} subject(s) for {student['name']}.",
+            "saved_count": len(valid_entries),
+            "errors": errors if errors else None,
+            "data": card.get("data")
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Database error: {str(e)}"}
+    finally:
+        conn.close()
+
+
 def delete_subject_marks(roll_no, subject_name, db_path=None):
     """
     Delete a specific subject result for a student.
@@ -150,16 +217,17 @@ def get_student_result(roll_no, db_path=None):
 
     student = student_res["data"]
     conn = get_connection(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT id, subject_name, marks_obtained, max_marks, updated_at
-        FROM results
-        WHERE student_id = ?
-        ORDER BY subject_name ASC
-    """, (student["id"],))
-    rows = cursor.fetchall()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, subject_name, marks_obtained, max_marks, updated_at
+            FROM results
+            WHERE student_id = ?
+            ORDER BY subject_name ASC
+        """, (student["id"],))
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
 
     _, subject_pass_pct, _ = get_grading_rules()
 
@@ -217,28 +285,37 @@ def get_student_result(roll_no, db_path=None):
 def get_all_results_summary(db_path=None):
     """
     Retrieve summary of results for all students registered in the system.
+    Safely catches any database exception and returns clean JSON response.
     """
-    init_db(db_path)
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT roll_no FROM students ORDER BY roll_no ASC")
-    rolls = [r["roll_no"] for r in cursor.fetchall()]
-    conn.close()
+    try:
+        init_db(db_path)
+        conn = get_connection(db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT roll_no FROM students ORDER BY roll_no ASC")
+            rolls = [r["roll_no"] for r in cursor.fetchall()]
+        finally:
+            conn.close()
 
-    summaries = []
-    for roll in rolls:
-        res = get_student_result(roll, db_path)
-        if res["success"]:
-            summaries.append({
-                "roll_no": res["data"]["student"]["roll_no"],
-                "name": res["data"]["student"]["name"],
-                "course": res["data"]["student"]["course"],
-                "semester": res["data"]["student"]["semester"],
-                "total_obtained": res["data"]["summary"]["total_marks_obtained"],
-                "total_max": res["data"]["summary"]["total_max_marks"],
-                "percentage": res["data"]["summary"]["percentage"],
-                "grade": res["data"]["summary"]["grade"],
-                "status": res["data"]["summary"]["status"]
-            })
+        summaries = []
+        for roll in rolls:
+            res = get_student_result(roll, db_path)
+            if res.get("success") and res.get("data"):
+                student_info = res["data"].get("student", {})
+                summary_info = res["data"].get("summary", {})
+                summaries.append({
+                    "roll_no": student_info.get("roll_no", roll),
+                    "name": student_info.get("name", ""),
+                    "course": student_info.get("course", ""),
+                    "semester": student_info.get("semester", 1),
+                    "total_obtained": summary_info.get("total_marks_obtained", 0.0),
+                    "total_max": summary_info.get("total_max_marks", 0.0),
+                    "percentage": summary_info.get("percentage", 0.0),
+                    "grade": summary_info.get("grade", "N/A"),
+                    "status": summary_info.get("status", "NO_MARKS_RECORDED")
+                })
 
-    return {"success": True, "count": len(summaries), "data": summaries}
+        return {"success": True, "count": len(summaries), "data": summaries}
+    except Exception as e:
+        return {"success": False, "error": f"Failed to retrieve results summary: {str(e)}", "data": []}
+

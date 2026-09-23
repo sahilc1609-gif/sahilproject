@@ -32,6 +32,7 @@ from src.students import (
 )
 from src.results import (
     add_or_update_subject_marks,
+    add_multiple_subject_marks,
     delete_subject_marks,
     get_student_result,
     compute_grade_and_status,
@@ -144,6 +145,23 @@ class TestStudentResultManagementSystem(unittest.TestCase):
 
         card = get_student_result("CS204", self.db_path)
         self.assertEqual(len(card["data"]["subjects"]), 0)
+
+    def test_add_multiple_subject_marks(self):
+        register_student("CS205", "Grace Hopper", "grace@example.com", "CS", 4, self.db_path)
+        subjects = [
+            {"subject_name": "Compilers", "marks_obtained": 95, "max_marks": 100},
+            {"subject_name": "COBOL", "marks_obtained": 92, "max_marks": 100},
+            {"subject_name": "Algorithms", "marks_obtained": 88, "max_marks": 100}
+        ]
+        res = add_multiple_subject_marks("CS205", subjects, self.db_path)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["saved_count"], 3)
+
+        card = get_student_result("CS205", self.db_path)
+        self.assertEqual(len(card["data"]["subjects"]), 3)
+        self.assertEqual(card["data"]["summary"]["total_marks_obtained"], 275.0)
+        self.assertEqual(card["data"]["summary"]["grade"], "A+")
+        self.assertEqual(card["data"]["summary"]["status"], "PASS")
 
     # ------------------------------------------------------------------------
     # 3. Calculation Logic Tests (Total, Percentage, Grade, Pass/Fail)
@@ -273,6 +291,61 @@ class TestStudentResultManagementSystem(unittest.TestCase):
         card_body = json.loads(resp_card["body"])
         self.assertEqual(card_body["data"]["summary"]["percentage"], 94.0)
 
+    # ------------------------------------------------------------------------
+    # 6. Database Health & REST API Route Tests
+    # ------------------------------------------------------------------------
+    def test_database_health_check(self):
+        from src.database import check_db_health
+        health = check_db_health(self.db_path)
+        self.assertEqual(health["status"], "healthy")
+        self.assertEqual(health["integrity"], "ok")
+        self.assertIn("student_count", health)
+        self.assertIn("result_count", health)
+
+    def test_flask_rest_api_database_routes(self):
+        os.environ["RESULTS_DB_PATH"] = self.db_path
+        from src.server import app
+        client = app.test_client()
+
+        # 1. Register student via REST
+        reg_res = client.post("/api/students", json={
+            "roll_no": "REST001",
+            "name": "Rest Student",
+            "email": "rest@example.com",
+            "course": "REST API Course",
+            "semester": 2,
+            "subjects": [
+                {"subject_name": "REST Basics", "marks_obtained": 88, "max_marks": 100}
+            ]
+        })
+        self.assertEqual(reg_res.status_code, 201)
+
+        # 2. Get student details via GET /api/students/<roll_no>
+        stu_res = client.get("/api/students/REST001")
+        self.assertEqual(stu_res.status_code, 200)
+        stu_data = stu_res.get_json()
+        self.assertEqual(stu_data["data"]["name"], "Rest Student")
+
+        # 3. Update student via PUT /api/students/<roll_no>
+        put_res = client.put("/api/students/REST001", json={"name": "Rest Student Updated"})
+        self.assertEqual(put_res.status_code, 200)
+
+        # 4. Get student result card via GET /api/results/<roll_no>
+        card_res = client.get("/api/results/REST001")
+        self.assertEqual(card_res.status_code, 200)
+        card_data = card_res.get_json()
+        self.assertEqual(card_data["data"]["summary"]["percentage"], 88.0)
+
+        # 5. Check database health endpoint GET /api/health
+        health_res = client.get("/api/health")
+        self.assertEqual(health_res.status_code, 200)
+        self.assertEqual(health_res.get_json()["status"], "healthy")
+
+        # 6. Delete student via DELETE /api/students/<roll_no>
+        del_res = client.delete("/api/students/REST001")
+        self.assertEqual(del_res.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -87,15 +87,15 @@ def get_student_by_roll_no(roll_no, db_path=None):
     """
     init_db(db_path)
     conn = get_connection(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM students WHERE roll_no = ?", (str(roll_no).strip().upper(),))
-    row = cursor.fetchone()
-    conn.close()
-
-    if row:
-        return {"success": True, "data": dict(row)}
-    return {"success": False, "error": f"Student with Roll No '{roll_no}' not found."}
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM students WHERE roll_no = ?", (str(roll_no).strip().upper(),))
+        row = cursor.fetchone()
+        if row:
+            return {"success": True, "data": dict(row)}
+        return {"success": False, "error": f"Student with Roll No '{roll_no}' not found."}
+    finally:
+        conn.close()
 
 
 def get_student_by_id(student_id, db_path=None):
@@ -104,31 +104,34 @@ def get_student_by_id(student_id, db_path=None):
     """
     init_db(db_path)
     conn = get_connection(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM students WHERE id = ?", (student_id,))
-    row = cursor.fetchone()
-    conn.close()
-
-    if row:
-        return {"success": True, "data": dict(row)}
-    return {"success": False, "error": f"Student with ID '{student_id}' not found."}
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM students WHERE id = ?", (student_id,))
+        row = cursor.fetchone()
+        if row:
+            return {"success": True, "data": dict(row)}
+        return {"success": False, "error": f"Student with ID '{student_id}' not found."}
+    finally:
+        conn.close()
 
 
 def list_all_students(db_path=None):
     """
     Retrieve all registered students ordered by roll number.
     """
-    init_db(db_path)
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM students ORDER BY roll_no ASC")
-    rows = cursor.fetchall()
-    conn.close()
-
-    students = [dict(row) for row in rows]
-    return {"success": True, "count": len(students), "data": students}
+    try:
+        init_db(db_path)
+        conn = get_connection(db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM students ORDER BY roll_no ASC")
+            rows = cursor.fetchall()
+            students = [dict(row) for row in rows]
+            return {"success": True, "count": len(students), "data": students}
+        finally:
+            conn.close()
+    except Exception as e:
+        return {"success": False, "error": f"Failed to list students: {str(e)}", "data": []}
 
 
 def update_student(roll_no, name=None, email=None, course=None, semester=None, db_path=None):
@@ -180,6 +183,7 @@ def update_student(roll_no, name=None, email=None, course=None, semester=None, d
 def delete_student(roll_no, db_path=None):
     """
     Delete a student and all associated result records (cascade).
+    Explicitly deletes child results first to guarantee no orphaned rows.
     """
     init_db(db_path)
     roll_no = str(roll_no).strip().upper()
@@ -187,9 +191,11 @@ def delete_student(roll_no, db_path=None):
     if not existing["success"]:
         return existing
 
+    student_id = existing["data"]["id"]
     conn = get_connection(db_path)
     cursor = conn.cursor()
     try:
+        cursor.execute("DELETE FROM results WHERE student_id = ?", (student_id,))
         cursor.execute("DELETE FROM students WHERE roll_no = ?", (roll_no,))
         conn.commit()
         return {
@@ -208,16 +214,16 @@ def search_students(query, db_path=None):
     """
     init_db(db_path)
     conn = get_connection(db_path)
-    cursor = conn.cursor()
-    keyword = f"%{str(query).strip()}%"
-
-    cursor.execute("""
-        SELECT * FROM students
-        WHERE roll_no LIKE ? OR name LIKE ? OR email LIKE ?
-        ORDER BY roll_no ASC
-    """, (keyword, keyword, keyword))
-    rows = cursor.fetchall()
-    conn.close()
-
-    students = [dict(row) for row in rows]
-    return {"success": True, "count": len(students), "data": students}
+    try:
+        cursor = conn.cursor()
+        keyword = f"%{str(query).strip()}%"
+        cursor.execute("""
+            SELECT * FROM students
+            WHERE roll_no LIKE ? OR name LIKE ? OR email LIKE ?
+            ORDER BY roll_no ASC
+        """, (keyword, keyword, keyword))
+        rows = cursor.fetchall()
+        students = [dict(row) for row in rows]
+        return {"success": True, "count": len(students), "data": students}
+    finally:
+        conn.close()

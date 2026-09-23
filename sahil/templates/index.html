@@ -335,16 +335,16 @@
   </div>
 
   <!-- ===================================================================== -->
-  <!-- MODAL 3: Add / Update Marks -->
+  <!-- MODAL 3: Add / Update Marks (Multi-Subject Batch Input) -->
   <!-- ===================================================================== -->
   <div class="modal-backdrop" id="modal-add-marks" style="display: none;">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-header">
         <div class="modal-title-wrap">
           <div class="modal-icon-badge emerald"><i class="fa-solid fa-pen-nib"></i></div>
           <div>
-            <h2 class="modal-title">Record Subject Marks</h2>
-            <p class="modal-subtitle" id="marks-modal-student-name">Enter examination scores</p>
+            <h2 class="modal-title">Record Examination Scores</h2>
+            <p class="modal-subtitle" id="marks-modal-student-name">Enter multiple subjects and scores at once</p>
           </div>
         </div>
         <button class="modal-close" id="btn-close-marks-modal"><i class="fa-solid fa-xmark"></i></button>
@@ -354,29 +354,47 @@
         <div class="modal-body">
           <input type="hidden" id="marks-roll">
 
-          <div class="form-group">
-            <label for="marks-subject">Subject Name <span class="required">*</span></label>
-            <input type="text" id="marks-subject" class="form-control" placeholder="e.g. Operating Systems" required>
+          <!-- Quick Presets -->
+          <div class="preset-bar">
+            <span class="preset-label"><i class="fa-solid fa-wand-magic-sparkles"></i> Quick Presets:</span>
+            <button type="button" class="btn-preset-pill" id="btn-preset-cs">5 Core CS Subjects</button>
+            <button type="button" class="btn-preset-pill" id="btn-preset-ece">5 Core Electronics</button>
+            <button type="button" class="btn-preset-pill" id="btn-preset-firstyear">First Year Core</button>
+            <button type="button" class="btn-preset-pill clear" id="btn-preset-clear">Clear Rows</button>
           </div>
 
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label for="marks-obtained">Marks Obtained <span class="required">*</span></label>
-              <input type="number" step="0.5" min="0" id="marks-obtained" class="form-control" placeholder="e.g. 85" required>
-            </div>
-            <div class="form-group flex-1">
-              <label for="marks-max">Maximum Marks</label>
-              <input type="number" step="0.5" min="1" id="marks-max" class="form-control" value="100" required>
-            </div>
+          <!-- Dynamic Subject Rows Table/List -->
+          <div class="subject-rows-header">
+            <div style="flex: 2.2;">Subject Name <span class="required">*</span></div>
+            <div style="flex: 1.1;">Marks <span class="required">*</span></div>
+            <div style="flex: 1.1;">Max Marks</div>
+            <div style="width: 44px; text-align: center;">Action</div>
           </div>
 
+          <div id="subject-rows-container" class="subject-rows-container">
+            <!-- Dynamic rows will be inserted here by JavaScript -->
+          </div>
+
+          <button type="button" class="btn-add-subject-row" id="btn-add-subject-row">
+            <i class="fa-solid fa-plus-circle"></i> Add Another Subject Row
+          </button>
+
+          <!-- Computed Batch Preview Box -->
           <div class="marks-preview-box" id="marks-preview-box">
             <div class="preview-item">
-              <span>Computed Percentage:</span>
+              <span>Total Subjects:</span>
+              <strong id="preview-total-subjects">0</strong>
+            </div>
+            <div class="preview-item">
+              <span>Cumulative Score:</span>
+              <strong id="preview-cumulative-score">0 / 0</strong>
+            </div>
+            <div class="preview-item">
+              <span>Aggregate %:</span>
               <strong id="preview-pct">0.0%</strong>
             </div>
             <div class="preview-item">
-              <span>Subject Evaluation:</span>
+              <span>Projected Grade & Status:</span>
               <span class="badge-status-neutral" id="preview-status">Awaiting Input</span>
             </div>
           </div>
@@ -385,7 +403,7 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="btn-cancel-marks">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btn-submit-marks">
-            <i class="fa-solid fa-floppy-disk"></i> Save Marks
+            <i class="fa-solid fa-floppy-disk"></i> Save All Subjects
           </button>
         </div>
       </form>
