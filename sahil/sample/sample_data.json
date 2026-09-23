@@ -1,0 +1,72 @@
+[
+  {
+    "roll_no": "CS2026001",
+    "name": "Aarav Sharma",
+    "email": "aarav.sharma@example.com",
+    "course": "B.Tech Computer Science",
+    "semester": 4,
+    "subjects": [
+      { "subject_name": "Data Structures & Algorithms", "marks_obtained": 88, "max_marks": 100 },
+      { "subject_name": "Database Management Systems", "marks_obtained": 92, "max_marks": 100 },
+      { "subject_name": "Operating Systems", "marks_obtained": 85, "max_marks": 100 },
+      { "subject_name": "Computer Networks", "marks_obtained": 79, "max_marks": 100 },
+      { "subject_name": "Software Engineering", "marks_obtained": 91, "max_marks": 100 }
+    ]
+  },
+  {
+    "roll_no": "CS2026002",
+    "name": "Ananya Patel",
+    "email": "ananya.patel@example.com",
+    "course": "B.Tech Computer Science",
+    "semester": 4,
+    "subjects": [
+      { "subject_name": "Data Structures & Algorithms", "marks_obtained": 95, "max_marks": 100 },
+      { "subject_name": "Database Management Systems", "marks_obtained": 97, "max_marks": 100 },
+      { "subject_name": "Operating Systems", "marks_obtained": 94, "max_marks": 100 },
+      { "subject_name": "Computer Networks", "marks_obtained": 89, "max_marks": 100 },
+      { "subject_name": "Software Engineering", "marks_obtained": 96, "max_marks": 100 }
+    ]
+  },
+  {
+    "roll_no": "CS2026003",
+    "name": "Rohan Verma",
+    "email": "rohan.verma@example.com",
+    "course": "B.Tech Computer Science",
+    "semester": 4,
+    "subjects": [
+      { "subject_name": "Data Structures & Algorithms", "marks_obtained": 62, "max_marks": 100 },
+      { "subject_name": "Database Management Systems", "marks_obtained": 58, "max_marks": 100 },
+      { "subject_name": "Operating Systems", "marks_obtained": 65, "max_marks": 100 },
+      { "subject_name": "Computer Networks", "marks_obtained": 54, "max_marks": 100 },
+      { "subject_name": "Software Engineering", "marks_obtained": 61, "max_marks": 100 }
+    ]
+  },
+  {
+    "roll_no": "CS2026004",
+    "name": "Diya Sengupta",
+    "email": "diya.sengupta@example.com",
+    "course": "B.Tech Computer Science",
+    "semester": 4,
+    "subjects": [
+      { "subject_name": "Data Structures & Algorithms", "marks_obtained": 74, "max_marks": 100 },
+      { "subject_name": "Database Management Systems", "marks_obtained": 78, "max_marks": 100 },
+      { "subject_name": "Operating Systems", "marks_obtained": 71, "max_marks": 100 },
+      { "subject_name": "Computer Networks", "marks_obtained": 68, "max_marks": 100 },
+      { "subject_name": "Software Engineering", "marks_obtained": 75, "max_marks": 100 }
+    ]
+  },
+  {
+    "roll_no": "CS2026005",
+    "name": "Kabir Mehta",
+    "email": "kabir.mehta@example.com",
+    "course": "B.Tech Computer Science",
+    "semester": 4,
+    "subjects": [
+      { "subject_name": "Data Structures & Algorithms", "marks_obtained": 32, "max_marks": 100 },
+      { "subject_name": "Database Management Systems", "marks_obtained": 45, "max_marks": 100 },
+      { "subject_name": "Operating Systems", "marks_obtained": 38, "max_marks": 100 },
+      { "subject_name": "Computer Networks", "marks_obtained": 41, "max_marks": 100 },
+      { "subject_name": "Software Engineering", "marks_obtained": 50, "max_marks": 100 }
+    ]
+  }
+]

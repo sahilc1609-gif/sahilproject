@@ -1,0 +1,112 @@
+service: student-result-management-system
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.11
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  memorySize: 256
+  timeout: 15
+  environment:
+    APP_ENV: ${self:provider.stage}
+    CONFIG_PATH: config/config.example.json
+    RESULTS_DB_PATH: /tmp/results.db
+
+package:
+  patterns:
+    - '!tests/**'
+    - '!docs/**'
+    - '!.pytest_cache/**'
+    - '!__pycache__/**'
+    - '!*.md'
+    - 'src/**'
+    - 'config/**'
+    - 'data/**'
+    - 'sample/**'
+
+functions:
+  # Catch-all unified API Gateway handler
+  api:
+    handler: src.app.lambda_handler
+    events:
+      - httpApi:
+          path: /students
+          method: get
+      - httpApi:
+          path: /students
+          method: post
+      - httpApi:
+          path: /students/{roll_no}
+          method: get
+      - httpApi:
+          path: /students/{roll_no}
+          method: put
+      - httpApi:
+          path: /students/{roll_no}
+          method: delete
+      - httpApi:
+          path: /students/{roll_no}/results
+          method: get
+      - httpApi:
+          path: /students/{roll_no}/results
+          method: post
+      - httpApi:
+          path: /students/{roll_no}/results/{subject}
+          method: delete
+      - httpApi:
+          path: /results/summary
+          method: get
+
+  # Dedicated Microservice functions
+  registerStudent:
+    handler: src.app.lambda_handler
+    events:
+      - httpApi:
+          path: /api/students/register
+          method: post
+
+  addMarks:
+    handler: src.app.lambda_handler
+    events:
+      - httpApi:
+          path: /api/results/add
+          method: post
+
+  getReportCard:
+    handler: src.app.lambda_handler
+    events:
+      - httpApi:
+          path: /api/results/card/{roll_no}
+          method: get
+
+resources:
+  Resources:
+    # Optional AWS DynamoDB / S3 storage definition for cloud-native persistence
+    StudentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: StudentResults_Students_${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: roll_no
+            AttributeType: S
+        KeySchema:
+          - AttributeName: roll_no
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    ResultsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: StudentResults_Marks_${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: roll_no
+            AttributeType: S
+          - AttributeName: subject_name
+            AttributeType: S
+        KeySchema:
+          - AttributeName: roll_no
+            KeyType: HASH
+          - AttributeName: subject_name
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST

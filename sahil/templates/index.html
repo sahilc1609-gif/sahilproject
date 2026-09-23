@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Result Management System | Serverless Dashboard</title>
+  <meta name="description" content="Serverless Student Result Management System with automated grade calculation, performance analytics, and report card generation.">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="dark-theme">
+  <div class="glow-bg"></div>
+  <div class="glow-bg-bottom"></div>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-group">
+        <div class="logo-orb">
+          <i class="fa-solid fa-graduation-cap"></i>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">EduResult <span class="brand-badge">Serverless</span></h1>
+          <p class="brand-sub">Student Result Management & Academic Analytics</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="cloud-status-chip">
+          <span class="status-dot pulsating"></span>
+          <i class="fa-brands fa-aws"></i>
+          <span>AWS Lambda Ready</span>
+        </div>
+        <button id="btn-seed-data" class="btn btn-secondary" title="Populate sample students">
+          <i class="fa-solid fa-database"></i>
+          <span>Seed Sample Data</span>
+        </button>
+        <button id="btn-open-register-modal" class="btn btn-primary">
+          <i class="fa-solid fa-user-plus"></i>
+          <span>Register Student</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-container">
+    
+    <!-- Top KPI Stats -->
+    <section class="stats-section">
+      <div class="stat-card" id="card-total-students">
+        <div class="stat-icon-wrapper blue-gradient">
+          <i class="fa-solid fa-users"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Total Students</span>
+          <h3 class="stat-value" id="val-total-students">--</h3>
+          <span class="stat-delta">Enrolled & Active</span>
+        </div>
+      </div>
+
+      <div class="stat-card" id="card-pass-rate">
+        <div class="stat-icon-wrapper emerald-gradient">
+          <i class="fa-solid fa-award"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Class Pass Rate</span>
+          <h3 class="stat-value" id="val-pass-rate">--%</h3>
+          <span class="stat-delta" id="val-pass-count">-- passed</span>
+        </div>
+      </div>
+
+      <div class="stat-card" id="card-class-avg">
+        <div class="stat-icon-wrapper purple-gradient">
+          <i class="fa-solid fa-chart-line"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Class Average</span>
+          <h3 class="stat-value" id="val-class-avg">--%</h3>
+          <span class="stat-delta">Across all subjects</span>
+        </div>
+      </div>
+
+      <div class="stat-card" id="card-top-performer">
+        <div class="stat-icon-wrapper amber-gradient">
+          <i class="fa-solid fa-trophy"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Top Performer</span>
+          <h3 class="stat-value small-val" id="val-top-performer">--</h3>
+          <span class="stat-delta" id="val-top-score">--% Score</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Content Workspace -->
+    <section class="workspace-section">
+      <div class="workspace-header">
+        <div class="search-box-wrapper">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input 
+            type="text" 
+            id="search-input" 
+            class="search-input" 
+            placeholder="Search by Roll Number, Name, Course, or Email..." 
+            autocomplete="off"
+          />
+          <button id="search-clear-btn" class="search-clear" style="display: none;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-label">Filter:</span>
+          <button class="filter-pill active" data-filter="all" id="filter-all">All</button>
+          <button class="filter-pill" data-filter="PASS" id="filter-pass">Passed</button>
+          <button class="filter-pill" data-filter="FAIL" id="filter-fail">Failed</button>
+          <select id="filter-semester" class="semester-filter-select" title="Filter by Semester">
+            <option value="all">All Semesters</option>
+            <option value="1">Semester 1</option>
+            <option value="2">Semester 2</option>
+            <option value="3">Semester 3</option>
+            <option value="4">Semester 4</option>
+            <option value="5">Semester 5</option>
+            <option value="6">Semester 6</option>
+            <option value="7">Semester 7</option>
+            <option value="8">Semester 8</option>
+          </select>
+          <button id="btn-refresh-data" class="btn-icon" title="Refresh Table">
+            <i class="fa-solid fa-rotate"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Table Container -->
+      <div class="table-card">
+        <div class="table-responsive">
+          <table class="data-table" id="students-table">
+            <thead>
+              <tr>
+                <th>Roll No</th>
+                <th>Student Profile</th>
+                <th>Course</th>
+                <th>Semester</th>
+                <th>Marks Obtained</th>
+                <th>Percentage</th>
+                <th>Grade</th>
+                <th>Status</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="table-body">
+              <!-- Dynamically populated rows -->
+              <tr>
+                <td colspan="8" class="empty-state">
+                  <div class="spinner"></div>
+                  <p>Loading student academic records...</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 1: Student Result Card -->
+  <!-- ===================================================================== -->
+  <div class="modal-backdrop" id="modal-result-card" style="display: none;">
+    <div class="modal-dialog result-dialog">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-icon-badge"><i class="fa-solid fa-file-lines"></i></div>
+          <div>
+            <h2 class="modal-title">Academic Result Transcript</h2>
+            <p class="modal-subtitle">Official semester score card & evaluation</p>
+          </div>
+        </div>
+        <button class="modal-close" id="btn-close-result-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" id="result-card-body">
+        <!-- Dynamically rendered result transcript -->
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="window.print()">
+          <i class="fa-solid fa-print"></i> Print Transcript
+        </button>
+        <button class="btn btn-primary" id="btn-result-add-more-marks">
+          <i class="fa-solid fa-plus"></i> Add / Edit Marks
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 2: Register Student -->
+  <!-- ===================================================================== -->
+  <div class="modal-backdrop" id="modal-register-student" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-icon-badge blue"><i class="fa-solid fa-user-plus"></i></div>
+          <div>
+            <h2 class="modal-title">Register New Student</h2>
+            <p class="modal-subtitle">Add a student to the academic database</p>
+          </div>
+        </div>
+        <button class="modal-close" id="btn-close-register-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="form-register-student">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="reg-roll">Roll Number <span class="required">*</span></label>
+              <input type="text" id="reg-roll" class="form-control" placeholder="e.g. CS2026101" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="reg-name">Full Name <span class="required">*</span></label>
+              <input type="text" id="reg-name" class="form-control" placeholder="e.g. Aarav Sharma" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-email">Email Address <span class="required">*</span></label>
+            <input type="email" id="reg-email" class="form-control" placeholder="aarav.sharma@example.com" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="reg-course">Degree Course <span class="required">*</span></label>
+              <input type="text" id="reg-course" class="form-control" placeholder="B.Tech Computer Science" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="reg-sem">Semester <span class="required">*</span></label>
+              <select id="reg-sem" class="form-control" required>
+                <option value="1">Sem 1</option>
+                <option value="2">Sem 2</option>
+                <option value="3">Sem 3</option>
+                <option value="4" selected>Sem 4</option>
+                <option value="5">Sem 5</option>
+                <option value="6">Sem 6</option>
+                <option value="7">Sem 7</option>
+                <option value="8">Sem 8</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-register">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-register">
+            <i class="fa-solid fa-check"></i> Register Student
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL: Edit Student & Update Semester -->
+  <!-- ===================================================================== -->
+  <div class="modal-backdrop" id="modal-edit-student" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-icon-badge purple"><i class="fa-solid fa-user-pen"></i></div>
+          <div>
+            <h2 class="modal-title">Edit Student & Semester</h2>
+            <p class="modal-subtitle">Update academic profile and semester</p>
+          </div>
+        </div>
+        <button class="modal-close" id="btn-close-edit-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="form-edit-student">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="edit-roll">Roll Number</label>
+              <input type="text" id="edit-roll" class="form-control" readonly style="opacity: 0.7; cursor: not-allowed;">
+            </div>
+            <div class="form-group flex-1">
+              <label for="edit-name">Full Name <span class="required">*</span></label>
+              <input type="text" id="edit-name" class="form-control" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="edit-email">Email Address <span class="required">*</span></label>
+            <input type="email" id="edit-email" class="form-control" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="edit-course">Degree Course <span class="required">*</span></label>
+              <input type="text" id="edit-course" class="form-control" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="edit-sem">Semester <span class="required">*</span></label>
+              <select id="edit-sem" class="form-control" required>
+                <option value="1">Sem 1</option>
+                <option value="2">Sem 2</option>
+                <option value="3">Sem 3</option>
+                <option value="4">Sem 4</option>
+                <option value="5">Sem 5</option>
+                <option value="6">Sem 6</option>
+                <option value="7">Sem 7</option>
+                <option value="8">Sem 8</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-edit">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-edit">
+            <i class="fa-solid fa-floppy-disk"></i> Update Student
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL 3: Add / Update Marks -->
+  <!-- ===================================================================== -->
+  <div class="modal-backdrop" id="modal-add-marks" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-icon-badge emerald"><i class="fa-solid fa-pen-nib"></i></div>
+          <div>
+            <h2 class="modal-title">Record Subject Marks</h2>
+            <p class="modal-subtitle" id="marks-modal-student-name">Enter examination scores</p>
+          </div>
+        </div>
+        <button class="modal-close" id="btn-close-marks-modal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="form-add-marks">
+        <div class="modal-body">
+          <input type="hidden" id="marks-roll">
+
+          <div class="form-group">
+            <label for="marks-subject">Subject Name <span class="required">*</span></label>
+            <input type="text" id="marks-subject" class="form-control" placeholder="e.g. Operating Systems" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="marks-obtained">Marks Obtained <span class="required">*</span></label>
+              <input type="number" step="0.5" min="0" id="marks-obtained" class="form-control" placeholder="e.g. 85" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="marks-max">Maximum Marks</label>
+              <input type="number" step="0.5" min="1" id="marks-max" class="form-control" value="100" required>
+            </div>
+          </div>
+
+          <div class="marks-preview-box" id="marks-preview-box">
+            <div class="preview-item">
+              <span>Computed Percentage:</span>
+              <strong id="preview-pct">0.0%</strong>
+            </div>
+            <div class="preview-item">
+              <span>Subject Evaluation:</span>
+              <span class="badge-status-neutral" id="preview-status">Awaiting Input</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-marks">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-marks">
+            <i class="fa-solid fa-floppy-disk"></i> Save Marks
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

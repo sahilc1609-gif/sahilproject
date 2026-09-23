@@ -1,0 +1,30 @@
+{
+  "app_name": "Serverless Student Result Management System",
+  "version": "1.0.0",
+  "database": {
+    "type": "sqlite",
+    "path": "data/results.db",
+    "cloud_provider": "aws",
+    "dynamodb_table_students": "StudentResults_Students",
+    "dynamodb_table_results": "StudentResults_Marks"
+  },
+  "grading_rules": {
+    "passing_percentage": 40.0,
+    "minimum_subject_pass_percentage": 35.0,
+    "grade_scale": [
+      { "grade": "A+", "min_percentage": 90.0, "description": "Outstanding" },
+      { "grade": "A",  "min_percentage": 80.0, "description": "Excellent" },
+      { "grade": "B+", "min_percentage": 70.0, "description": "Very Good" },
+      { "grade": "B",  "min_percentage": 60.0, "description": "Good" },
+      { "grade": "C",  "min_percentage": 50.0, "description": "Above Average" },
+      { "grade": "P",  "min_percentage": 40.0, "description": "Pass" },
+      { "grade": "F",  "min_percentage": 0.0,  "description": "Fail" }
+    ]
+  },
+  "serverless": {
+    "service": "student-result-management-system",
+    "stage": "dev",
+    "region": "us-east-1",
+    "runtime": "python3.12"
+  }
+}
